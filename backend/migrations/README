@@ -1,0 +1,4 @@
+Alembic migrations live here.
+
+Run (PowerShell):
+  C:/Users/dariu/birth-journal-backend/.venv/Scripts/python.exe -m alembic upgrade head
