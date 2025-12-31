@@ -168,6 +168,21 @@ def claim_case(body: ClaimCaseRequest, principal: object = Depends(require_midwi
 	new_join_code = generate_join_code()
 	case.join_code_hash = hash_join_code(new_join_code)
 	case.join_code_last_rotated_at = _utcnow()
+	
+	# Auto-set case to labor mode when claimed
+	now = _utcnow()
+	labor_event = Event(
+		event_id=uuid.uuid4(),
+		case_id=case.case_id,
+		type="set_labor_active",
+		ts=now,
+		server_ts=now,
+		track=derive_track("set_labor_active"),
+		source="system",
+		payload_v=1,
+		payload={"active": True, "auto_set_on_claim": True},
+	)
+	db.add(labor_event)
 	db.commit()
 	
 	return ClaimCaseResponse(case_id=case.case_id)
@@ -571,3 +586,16 @@ def alert_resolve(
 	db.commit()
 	db.refresh(ev)
 	return _to_event_out(ev)
+
+
+# Development endpoints (should be disabled in production)
+@router.post("/dev/wipe")
+def dev_wipe_database(db: Session = Depends(get_db)) -> dict:
+	"""DANGEROUS: Wipe all data from the database. For development only."""
+	# Delete in correct order to respect foreign keys
+	db.execute(sa.delete(Event))
+	db.execute(sa.delete(Case))
+	db.execute(sa.delete(Midwife))
+	db.commit()
+	return {"status": "wiped", "message": "All data deleted"}
+
