@@ -34,6 +34,7 @@ from .schemas import (
 	JoinCaseRequest,
 	JoinCaseResponse,
 	QRResponse,
+	SetModeRequest,
 	SyncRejected,
 	SyncRequest,
 	SyncResponse,
@@ -199,10 +200,27 @@ def get_case_status(case_id: uuid.UUID, principal: object = Depends(require_case
 	if case is None:
 		raise HTTPException(status_code=404, detail="case_not_found")
 	
+	# Get latest toggle states
+	def _latest_toggle(event_type: str) -> bool:
+		active_text = db.scalar(
+			sa.select(Event.payload["active"].astext)
+			.where(Event.case_id == case_id, Event.type == event_type)
+			.order_by(Event.event_seq.desc())
+			.limit(1)
+		)
+		if active_text is None:
+			return False
+		return str(active_text).lower() == "true"
+
+	labor_active = _latest_toggle("set_labor_active") if case.status == "active" else False
+	postpartum_active = _latest_toggle("set_postpartum_active") if case.status == "active" else False
+	
 	return CaseStatusResponse(
 		case_id=case.case_id,
 		status=case.status,
-		claimed=case.midwife_id is not None
+		claimed=case.midwife_id is not None,
+		labor_active=labor_active,
+		postpartum_active=postpartum_active,
 	)
 
 
@@ -271,6 +289,60 @@ def close_case(case_id: uuid.UUID, _: object = Depends(require_midwife), db: Ses
     db.commit()
 
     return {"case_id": str(case.case_id), "status": case.status, "closed_at": case.closed_at.isoformat()}
+
+
+@router.post("/cases/{case_id}/set-labor", response_model=EventEnvelopeOut)
+def set_labor_mode(case_id: uuid.UUID, body: SetModeRequest, _: object = Depends(require_midwife), db: Session = Depends(get_db)) -> EventEnvelopeOut:
+    """Set labor active/inactive for a case."""
+    case = db.scalar(sa.select(Case).where(Case.case_id == case_id))
+    if case is None:
+        raise HTTPException(status_code=404, detail="case_not_found")
+    if case.status == "closed":
+        raise HTTPException(status_code=400, detail="case_is_closed")
+
+    now = _utcnow()
+    ev = Event(
+        event_id=uuid.uuid4(),
+        case_id=case_id,
+        type="set_labor_active",
+        ts=now,
+        server_ts=now,
+        track=derive_track("set_labor_active"),
+        source="midwife",
+        payload_v=1,
+        payload={"active": body.active},
+    )
+    db.add(ev)
+    db.commit()
+    db.refresh(ev)
+    return _to_event_out(ev)
+
+
+@router.post("/cases/{case_id}/set-postpartum", response_model=EventEnvelopeOut)
+def set_postpartum_mode(case_id: uuid.UUID, body: SetModeRequest, _: object = Depends(require_midwife), db: Session = Depends(get_db)) -> EventEnvelopeOut:
+    """Set postpartum active/inactive for a case."""
+    case = db.scalar(sa.select(Case).where(Case.case_id == case_id))
+    if case is None:
+        raise HTTPException(status_code=404, detail="case_not_found")
+    if case.status == "closed":
+        raise HTTPException(status_code=400, detail="case_is_closed")
+
+    now = _utcnow()
+    ev = Event(
+        event_id=uuid.uuid4(),
+        case_id=case_id,
+        type="set_postpartum_active",
+        ts=now,
+        server_ts=now,
+        track=derive_track("set_postpartum_active"),
+        source="midwife",
+        payload_v=1,
+        payload={"active": body.active},
+    )
+    db.add(ev)
+    db.commit()
+    db.refresh(ev)
+    return _to_event_out(ev)
 @router.post("/events/sync", response_model=SyncResponse)
 def events_sync(
 	body: SyncRequest,

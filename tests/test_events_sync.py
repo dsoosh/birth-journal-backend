@@ -9,7 +9,9 @@ def _auth(client, token: str) -> dict:
 
 
 def _midwife_token(client) -> str:
-    r = client.post("/api/v1/auth/login", json={"username": "mw", "password": "pw"})
+    # Create a test midwife using the test-account endpoint
+    email = f"midwife_sync_test_{uuid.uuid4().hex[:8]}@test.com"
+    r = client.post("/api/v1/auth/test-account", json={"email": email, "password": "testpw123"})
     assert r.status_code == 200
     return r.json()["token"]
 

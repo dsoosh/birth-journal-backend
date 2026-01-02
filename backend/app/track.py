@@ -18,7 +18,7 @@ def derive_track(event_type: str) -> Track:
     if event_type.startswith("alert_"):
         return "meta"
 
-    if event_type in {"note", "visit_task"}:
+    if event_type in {"note", "visit_task", "midwife_reaction"}:
         return "meta"
 
     return "meta"

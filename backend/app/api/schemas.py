@@ -54,6 +54,12 @@ class CaseStatusResponse(BaseModel):
     case_id: uuid.UUID
     status: str
     claimed: bool
+    labor_active: bool = False
+    postpartum_active: bool = False
+
+
+class SetModeRequest(BaseModel):
+    active: bool
 
 
 class JoinCaseRequest(BaseModel):

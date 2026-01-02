@@ -299,6 +299,20 @@ Note: Contraction event types are supported but not required; backend may ignore
       "active": true
     }
 
+**midwife_reaction**
+
+    {
+      "event_id": "uuid",
+      "reaction": "ack | coming | ok | seen"
+    }
+
+Used by midwives to acknowledge patient-reported events. The `event_id` field references the original event being reacted to.
+
+- `ack`: Acknowledged
+- `coming`: On my way / I'm coming
+- `ok`: It's okay / no worries
+- `seen`: Seen/reviewed
+
 ---
 
 ## Derived events (system)
