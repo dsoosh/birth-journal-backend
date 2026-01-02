@@ -7,6 +7,6 @@
     "numReplicas": 1,
     "restartPolicyType": "on_failure",
     "restartPolicyMaxRetries": 5,
-    "postDeploy": "python -m alembic upgrade head"
+    "postDeploy": "alembic upgrade head"
   }
 }
