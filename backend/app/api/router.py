@@ -21,6 +21,8 @@ from backend.app.ws_manager import manager
 from .schemas import (
 	AuthLoginRequest,
 	AuthLoginResponse,
+	AuthRegisterRequest,
+	AuthRegisterResponse,
 	CasesListItem,
 	CasesListResponse,
 	CaseStatusResponse,
@@ -94,6 +96,33 @@ def auth_login(body: AuthLoginRequest, db: Session = Depends(get_db)) -> AuthLog
 
 	token = mint_midwife_token(sub=str(midwife.midwife_id))
 	return AuthLoginResponse(token=token)
+
+
+@router.post("/auth/register", response_model=AuthRegisterResponse)
+def auth_register(body: AuthRegisterRequest, db: Session = Depends(get_db)) -> AuthRegisterResponse:
+	"""Register a new midwife account with email and password."""
+	# Check if email already exists
+	existing = db.scalar(sa.select(Midwife).where(Midwife.email == body.email))
+	if existing is not None:
+		raise HTTPException(status_code=409, detail="email_already_exists")
+	
+	if not body.email or not body.password:
+		raise HTTPException(status_code=400, detail="invalid_credentials")
+	
+	if len(body.password) < 6:
+		raise HTTPException(status_code=400, detail="password_too_short")
+	
+	# Create new account
+	midwife = Midwife(
+		email=body.email,
+		password_hash=hash_password(body.password),
+	)
+	db.add(midwife)
+	db.commit()
+	db.refresh(midwife)
+	
+	token = mint_midwife_token(sub=str(midwife.midwife_id))
+	return AuthRegisterResponse(token=token, email=body.email)
 
 
 @router.post("/auth/test-account", response_model=TestAccountResponse)

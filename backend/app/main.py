@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -22,8 +23,18 @@ def run_migrations():
         print(f"⚠ Warning: Could not run migrations: {e}")
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan context manager."""
+    # Startup
+    run_migrations()
+    yield
+    # Shutdown
+    pass
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Położne API", version="0.1.0")
+    app = FastAPI(title="Położne API", version="0.1.0", lifespan=lifespan)
     
     app.add_middleware(
         CORSMiddleware,
@@ -40,12 +51,10 @@ def create_app() -> FastAPI:
     if static_dir.exists():
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
-    @app.on_event("startup")
-    def startup_event():
-        """Run migrations on application startup."""
-        run_migrations()
-
     return app
+
+
+app = create_app()
 
 
 app = create_app()

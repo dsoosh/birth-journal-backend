@@ -21,6 +21,16 @@ class AuthLoginResponse(BaseModel):
     token: str
 
 
+class AuthRegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class AuthRegisterResponse(BaseModel):
+    token: str
+    email: EmailStr
+
+
 class TestAccountRequest(BaseModel):
     email: EmailStr
     password: str
