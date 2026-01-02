@@ -31,59 +31,104 @@ This document provides instructions for deploying the Położne PoC to productio
 
 ## Backend Deployment (Railway)
 
+### Quick Deploy (Recommended)
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/your-template-id)
+
 ### Step 1: Create Railway Project
 
 1. Go to [railway.app](https://railway.app) and sign in with GitHub
 2. Click "New Project" → "Deploy from GitHub repo"
 3. Select the `birth-journal-backend` repository
-4. Railway will auto-detect the Python project
+4. Railway will auto-detect the Python project using `railway.json` and `nixpacks.toml`
 
 ### Step 2: Add PostgreSQL
 
 1. In your Railway project, click "New" → "Database" → "PostgreSQL"
 2. Railway will provision a managed Postgres instance
-3. Copy the `DATABASE_URL` from the PostgreSQL service
+3. The `DATABASE_URL` will be automatically injected as an environment variable
+4. No manual configuration needed - Railway handles the connection
 
 ### Step 3: Configure Environment Variables
 
 In Railway dashboard → Variables, add:
 
-```
-DATABASE_URL=<auto-populated by Railway>
+```bash
+# Required
 JWT_SECRET=<generate with: openssl rand -hex 32>
+
+# Optional (defaults provided)
 JWT_ALGORITHM=HS256
 JWT_TTL_SECONDS=86400
-CORS_ORIGINS=https://your-domain.com,polozne://
+CORS_ORIGINS=https://your-domain.com,https://*.railway.app
+
+# DATABASE_URL is auto-populated by Railway PostgreSQL service
 ```
 
-### Step 4: Configure Start Command
+**Generate JWT Secret:**
+```powershell
+# PowerShell
+-join ((48..57) + (65..90) + (97..122) | Get-Random -Count 64 | ForEach-Object {[char]$_})
 
-Create `Procfile` in repository root:
-
+# Or use Python
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
-web: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
-```
 
-Or set in Railway:
-- Start Command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
+### Step 4: Deploy
 
-### Step 5: Run Migrations
+Railway will automatically:
+1. Build using Python 3.11
+2. Install dependencies from `requirements.txt`
+3. Run database migrations (`alembic upgrade head`)
+4. Start the FastAPI server on `$PORT`
 
-In Railway → Settings → Deploy, add:
-- Release Command: `alembic upgrade head`
+Configuration is in `railway.json` and `nixpacks.toml` (no manual setup needed).
 
-### Step 6: Custom Domain (Optional)
+### Step 5: Custom Domain (Optional)
 
 1. In Railway → Settings → Domains
-2. Add custom domain (e.g., `api.polozne.pl`)
-3. Configure DNS CNAME record to Railway
+2. Click "Generate Domain" for a free `*.up.railway.app` domain
+3. Or add custom domain (e.g., `api.polozne.pl`)
+4. Configure DNS:
+   - Type: CNAME
+   - Name: `api` (or `@` for root domain)
+   - Value: Railway-provided CNAME target
 
 ### Verification
 
 ```bash
-curl https://your-railway-url.up.railway.app/api/v1/health
+# Check health endpoint
+curl https://your-app.up.railway.app/api/v1/health
 # Should return: {"ok": true, "db": true}
+
+# Test authentication
+curl -X POST https://your-app.up.railway.app/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"midwife@example.com","password":"test"}'
 ```
+
+### Monitoring & Logs
+
+- **Logs**: Railway dashboard → Deployments → View Logs
+- **Metrics**: Railway dashboard → Metrics (CPU, Memory, Network)
+- **Database**: Railway dashboard → PostgreSQL service → Metrics & Query stats
+
+### Troubleshooting
+
+**Build Fails:**
+- Check Railway logs for Python dependency errors
+- Ensure `requirements.txt` is up to date
+- Verify Python version compatibility (3.11)
+
+**Migration Fails:**
+- Check DATABASE_URL is set correctly
+- Verify PostgreSQL service is running
+- Manually run: `railway run alembic upgrade head`
+
+**App Crashes:**
+- Check JWT_SECRET is set
+- Verify CORS_ORIGINS includes your Railway domain
+- Check logs for startup errors
 
 ---
 
