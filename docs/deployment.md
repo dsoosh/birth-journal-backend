@@ -87,41 +87,51 @@ CORS_ORIGINS=https://your-domain.com,https://*.railway.app
 **Verification:**
 After adding variables, you should see `DATABASE_URL` with a purple reference badge in the Variables tab.
 
-### Step 4: Run Migrations (Post-Deploy)
+### Step 4: Configure Post-Deploy Migrations (AUTOMATIC)
 
-After the backend service is deployed and running, you need to run database migrations:
+Railway automatically runs migrations after each deployment via the **`railway.json` configuration file**:
 
-**In Railway dashboard:**
-1. Go to your backend service → More Options (⋯) → Run Command
-2. Enter command: `python -m alembic upgrade head`
-3. Click "Run"
-
-**Or via Railway CLI:**
-```bash
-railway run python -m alembic upgrade head
+**Already Configured:**
+The `railway.json` file in the root of this project includes:
+```json
+{
+  "deploy": {
+    "postDeploy": "python -m alembic upgrade head"
+  }
+}
 ```
 
-The migrations will:
-- Create all required tables (cases, events, midwives, etc.)
-- Set up primary keys, foreign keys, and indexes
-- Initialize the append-only event store
+This means:
+- ✅ Migrations run automatically after every successful deployment
+- ✅ Database schema is always in sync with code
+- ✅ Deployment fails if migrations fail (safety feature)
 
-**Verification:**
+**Manual Migration (if needed):**
 ```bash
-# Check if migrations succeeded
-railway run python -c "from backend.app.models import Base; print('Database schema initialized')"
+# Using Railway CLI
+railway run python -m alembic upgrade head
 ```
 
 ### Step 5: Deploy
 
-After configuring environment variables and preparing to run migrations:
-1. Railway will automatically build and deploy the backend service
-2. The service uses `Procfile` to start the FastAPI server directly
-3. **Do NOT start the service yet** - configure database first (see Step 3 above)
+**Initial Deployment:**
+1. Git push to main branch (triggers GitHub Actions and Railway)
+2. Railway auto-deploys the backend
+3. Post-deploy hook runs: `python -m alembic upgrade head`
+4. Migrations complete automatically
 
-Configuration is in `Procfile` (just starts the server, migrations are separate).
+**Verification After Deployment:**
+```bash
+# Check health endpoint
+curl https://birth-journal-backend-production.up.railway.app/api/v1/health
+# Expected: {"ok": true, "db": true}
 
-### Step 5: Custom Domain (Optional)
+# View deployment logs
+railway logs
+# Expected: See migration output showing tables created
+```
+
+### Step 6: Custom Domain (Optional)
 
 1. In Railway → Settings → Domains
 2. Click "Generate Domain" for a free `*.up.railway.app` domain
