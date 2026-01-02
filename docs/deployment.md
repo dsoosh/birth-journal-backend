@@ -87,17 +87,39 @@ CORS_ORIGINS=https://your-domain.com,https://*.railway.app
 **Verification:**
 After adding variables, you should see `DATABASE_URL` with a purple reference badge in the Variables tab.
 
-### Step 4: Deploy
+### Step 4: Run Migrations (Post-Deploy)
 
-After setting environment variables, Railway will automatically deploy (or trigger a redeploy):
-1. Build using Python 3.13
-2. Install dependencies from `requirements.txt`
-3. Run database migrations (`alembic upgrade head`)
-4. Start the FastAPI server on `$PORT`
+After the backend service is deployed and running, you need to run database migrations:
 
-Configuration is in `Procfile` (no additional setup needed).
+**In Railway dashboard:**
+1. Go to your backend service → More Options (⋯) → Run Command
+2. Enter command: `python -m alembic upgrade head`
+3. Click "Run"
 
-**Important:** Ensure PostgreSQL service is running before the backend starts!
+**Or via Railway CLI:**
+```bash
+railway run python -m alembic upgrade head
+```
+
+The migrations will:
+- Create all required tables (cases, events, midwives, etc.)
+- Set up primary keys, foreign keys, and indexes
+- Initialize the append-only event store
+
+**Verification:**
+```bash
+# Check if migrations succeeded
+railway run python -c "from backend.app.models import Base; print('Database schema initialized')"
+```
+
+### Step 5: Deploy
+
+After configuring environment variables and preparing to run migrations:
+1. Railway will automatically build and deploy the backend service
+2. The service uses `Procfile` to start the FastAPI server directly
+3. **Do NOT start the service yet** - configure database first (see Step 3 above)
+
+Configuration is in `Procfile` (just starts the server, migrations are separate).
 
 ### Step 5: Custom Domain (Optional)
 

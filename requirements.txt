@@ -1,9 +1,11 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic-settings==2.7.0
+pydantic[email]==2.7.0
 SQLAlchemy==2.0.36
 alembic==1.14.0
 psycopg[binary]==3.2.3
+psycopg2-binary==2.9.9
 PyJWT==2.10.1
 qrcode[pil]==8.1
 bcrypt==4.1.2
