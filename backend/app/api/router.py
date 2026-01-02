@@ -35,6 +35,8 @@ from .schemas import (
 	InitiateCaseResponse,
 	JoinCaseRequest,
 	JoinCaseResponse,
+	PairMidwifeRequest,
+	PairMidwifeResponse,
 	QRResponse,
 	SetModeRequest,
 	SyncRejected,
@@ -42,6 +44,7 @@ from .schemas import (
 	SyncResponse,
 	TestAccountRequest,
 	TestAccountResponse,
+	UnpairMidwifeResponse,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -198,24 +201,66 @@ def claim_case(body: ClaimCaseRequest, principal: object = Depends(require_midwi
 	new_join_code = generate_join_code()
 	case.join_code_hash = hash_join_code(new_join_code)
 	case.join_code_last_rotated_at = _utcnow()
-	
-	# Auto-set case to labor mode when claimed
-	now = _utcnow()
-	labor_event = Event(
-		event_id=uuid.uuid4(),
-		case_id=case.case_id,
-		type="set_labor_active",
-		ts=now,
-		server_ts=now,
-		track=derive_track("set_labor_active"),
-		source="system",
-		payload_v=1,
-		payload={"active": True, "auto_set_on_claim": True},
-	)
-	db.add(labor_event)
 	db.commit()
 	
 	return ClaimCaseResponse(case_id=case.case_id)
+
+
+@router.post("/cases/{case_id}/pair", response_model=PairMidwifeResponse)
+def pair_midwife(
+	case_id: uuid.UUID,
+	body: PairMidwifeRequest,
+	principal: object = Depends(require_case),
+	db: Session = Depends(get_db)
+) -> PairMidwifeResponse:
+	"""Patient pairs their case with a midwife using the midwife's join code."""
+	# Verify the case belongs to the authenticated patient
+	if uuid.UUID(principal.case_id) != case_id:
+		raise HTTPException(status_code=403, detail="forbidden")
+	
+	case = db.scalar(sa.select(Case).where(Case.case_id == case_id, Case.status == "active"))
+	if case is None:
+		raise HTTPException(status_code=404, detail="case_not_found")
+	
+	# Find midwife's case with matching join code
+	join_hash = hash_join_code(body.join_code)
+	midwife_case = db.scalar(
+		sa.select(Case).where(
+			Case.join_code_hash == join_hash,
+			Case.status == "active",
+			Case.midwife_id.isnot(None)
+		)
+	)
+	if midwife_case is None:
+		raise HTTPException(status_code=404, detail="midwife_join_code_invalid")
+	
+	# Pair the case with the midwife
+	case.midwife_id = midwife_case.midwife_id
+	db.commit()
+	
+	return PairMidwifeResponse(case_id=case_id, midwife_paired=True)
+
+
+@router.post("/cases/{case_id}/unpair", response_model=UnpairMidwifeResponse)
+def unpair_midwife(
+	case_id: uuid.UUID,
+	principal: object = Depends(require_case),
+	db: Session = Depends(get_db)
+) -> UnpairMidwifeResponse:
+	"""Patient unpairs their case from the current midwife."""
+	# Verify the case belongs to the authenticated patient
+	if uuid.UUID(principal.case_id) != case_id:
+		raise HTTPException(status_code=403, detail="forbidden")
+	
+	case = db.scalar(sa.select(Case).where(Case.case_id == case_id, Case.status == "active"))
+	if case is None:
+		raise HTTPException(status_code=404, detail="case_not_found")
+	
+	# Unpair the midwife
+	case.midwife_id = None
+	db.commit()
+	
+	return UnpairMidwifeResponse(case_id=case_id, midwife_unpaired=True)
 
 
 @router.get("/cases/{case_id}/status", response_model=CaseStatusResponse)
@@ -498,15 +543,16 @@ def list_cases(
 	view: str = Query(default="summary", pattern="^(summary|full)$"),
 	limit: int = Query(default=50, ge=1, le=200),
 	cursor: str | None = None,
-	_: object = Depends(require_midwife),
+	principal: object = Depends(require_midwife),
 	db: Session = Depends(get_db),
 ) -> CasesListResponse:
 	_ = view  # reserved for later
 	since = _parse_cursor(cursor)
+	midwife_id = uuid.UUID(principal.sub)
 
 	stmt = (
 		sa.select(Case)
-		.where(Case.status == status)
+		.where(Case.status == status, Case.midwife_id == midwife_id)
 		.order_by(Case.created_at.asc(), Case.case_id.asc())
 		.offset(since)
 		.limit(limit)

@@ -60,6 +60,20 @@ class ClaimCaseResponse(BaseModel):
     case_id: uuid.UUID
 
 
+class PairMidwifeRequest(BaseModel):
+    join_code: str
+
+
+class PairMidwifeResponse(BaseModel):
+    case_id: uuid.UUID
+    midwife_paired: bool
+
+
+class UnpairMidwifeResponse(BaseModel):
+    case_id: uuid.UUID
+    midwife_unpaired: bool
+
+
 class CaseStatusResponse(BaseModel):
     case_id: uuid.UUID
     status: str
