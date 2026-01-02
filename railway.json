@@ -6,7 +6,6 @@
   "deploy": {
     "numReplicas": 1,
     "restartPolicyType": "on_failure",
-    "restartPolicyMaxRetries": 5,
-    "postDeploy": "alembic upgrade head"
+    "restartPolicyMaxRetries": 5
   }
 }
