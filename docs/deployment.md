@@ -47,42 +47,57 @@ This document provides instructions for deploying the Położne PoC to productio
 1. In your Railway project, click "New" → "Database" → "PostgreSQL"
 2. Railway will provision a managed Postgres instance
 3. The `DATABASE_URL` will be automatically injected as an environment variable
-4. No manual configuration needed - Railway handles the connection
+4. **IMPORTANT**: Wait for PostgreSQL to finish provisioning before deploying the backend
 
 ### Step 3: Configure Environment Variables
 
-In Railway dashboard → Variables, add:
+In Railway dashboard → Your backend service → Variables tab, follow these steps:
 
-```bash
-# Required
-JWT_SECRET=<generate with: openssl rand -hex 32>
+**1. Link PostgreSQL DATABASE_URL (CRITICAL):**
+- Click "New Variable"
+- Click "Add Reference" button (not "New Variable" for manual entry)
+- From the dropdown, select your PostgreSQL service
+- Select `DATABASE_URL` - this will create a reference variable
+- **Do NOT manually enter the DATABASE_URL** - let Railway create the reference
 
-# Optional (defaults provided)
-JWT_ALGORITHM=HS256
-JWT_TTL_SECONDS=86400
-CORS_ORIGINS=https://your-domain.com,https://*.railway.app
+**2. Add JWT_SECRET:**
+- Click "New Variable" again
+- Enter key: `JWT_SECRET`
+- Enter value: your generated secret (see below)
 
-# DATABASE_URL is auto-populated by Railway PostgreSQL service
-```
-
-**Generate JWT Secret:**
+**To generate JWT_SECRET:**
 ```powershell
 # PowerShell
 -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 64 | ForEach-Object {[char]$_})
 
 # Or use Python
 python -c "import secrets; print(secrets.token_hex(32))"
+
+# Or use online generator
+# Visit: https://randomkeygen.com/ and use "CodeIgniter Encryption Keys"
 ```
+
+**3. Optional variables (have defaults):**
+```bash
+JWT_ALGORITHM=HS256
+JWT_TTL_SECONDS=86400
+CORS_ORIGINS=https://your-domain.com,https://*.railway.app
+```
+
+**Verification:**
+After adding variables, you should see `DATABASE_URL` with a purple reference badge in the Variables tab.
 
 ### Step 4: Deploy
 
-Railway will automatically:
-1. Build using Python 3.11
+After setting environment variables, Railway will automatically deploy (or trigger a redeploy):
+1. Build using Python 3.13
 2. Install dependencies from `requirements.txt`
 3. Run database migrations (`alembic upgrade head`)
 4. Start the FastAPI server on `$PORT`
 
-Configuration is in `railway.json` and `nixpacks.toml` (no manual setup needed).
+Configuration is in `Procfile` (no additional setup needed).
+
+**Important:** Ensure PostgreSQL service is running before the backend starts!
 
 ### Step 5: Custom Domain (Optional)
 
